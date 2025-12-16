@@ -1,0 +1,49 @@
+"""
+Simple one-click test runner. Usage:
+  python run_tests
+
+This script will create a venv (if not present), install requirements, then run pytest.
+It is cross-platform and works on Windows PowerShell (the user's environment).
+"""
+import os
+import sys
+import subprocess
+import venv
+from pathlib import Path
+
+ROOT = Path(__file__).parent
+VENV_DIR = ROOT / ".venv"
+
+def run(cmd, check=True, **kw):
+    print("$", " ".join(cmd))
+    return subprocess.run(cmd, check=check, **kw)
+
+def ensure_venv():
+    if not VENV_DIR.exists():
+        print("Creating virtual environment in .venv...")
+        venv.create(VENV_DIR, with_pip=True)
+    else:
+        print("Using existing .venv")
+
+def pip_install(reqs_file: Path):
+    if sys.platform == "win32":
+        pip = str(VENV_DIR / "Scripts" / "pip.exe")
+    else:
+        pip = str(VENV_DIR / "bin" / "pip")
+    run([pip, "install", "-r", str(reqs_file)])
+
+def run_pytest():
+    if sys.platform == "win32":
+        py = str(VENV_DIR / "Scripts" / "python.exe")
+    else:
+        py = str(VENV_DIR / "bin" / "python")
+    env = os.environ.copy()
+    # Ensure tests run deterministically (policies enabled by default in module)
+    env["POLICIES_PATH"] = str(ROOT / "policy.json")
+    env["POLICIES_ENABLED"] = env.get("POLICIES_ENABLED", "1")
+    run([py, "-m", "pytest", "-q"], env=env)
+
+if __name__ == "__main__":
+    ensure_venv()
+    pip_install(ROOT / "requirements.txt")
+    run_pytest()

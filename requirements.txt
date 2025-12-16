@@ -1,0 +1,4 @@
+pytest>=6.0
+# fastapi/pydantic not required for tests because module has fallbacks, but included for completeness
+fastapi>=0.70.0
+pydantic>=1.8.0

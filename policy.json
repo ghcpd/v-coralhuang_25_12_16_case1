@@ -1,0 +1,35 @@
+[
+  {
+    "name": "trusted-user-low-risk",
+    "operator": "OR",
+    "rules": [
+      { "type": "user", "prefixes": ["trusted_"] }
+    ],
+    "outcome": "LOW_RISK"
+  },
+  {
+    "name": "promotional-medium-risk",
+    "operator": "OR",
+    "rules": [
+      { "type": "keyword", "keywords": ["promotional"], "match": "any" }
+    ],
+    "outcome": "MEDIUM_RISK"
+  },
+  {
+    "name": "scam-high-risk",
+    "operator": "OR",
+    "rules": [
+      { "type": "keyword", "keywords": ["scam"], "match": "any" }
+    ],
+    "outcome": "HIGH_RISK"
+  },
+  {
+    "name": "urgent-action-and-rule",
+    "operator": "AND",
+    "rules": [
+      { "type": "keyword", "keywords": ["urgent"], "match": "any" },
+      { "type": "keyword", "keywords": ["action"], "match": "any" }
+    ],
+    "outcome": "HIGH_RISK"
+  }
+]
