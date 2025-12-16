@@ -1,8 +1,3 @@
-Below is the **English version of the evaluation prompt**, rewritten cleanly and professionally.
-It is designed to be **directly fed to an Agent** to evaluate real *new feature implementation capability*, not ideation.
-
----
-
 # Agent Evaluation Prompt
 
 **Category:** Feature & Improvement
