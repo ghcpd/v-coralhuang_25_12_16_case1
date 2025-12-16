@@ -1,8 +1,4 @@
-User: Below is the **English version of the evaluation prompt**, rewritten cleanly and professionally.
-It is designed to be **directly fed to an Agent** to evaluate real *new feature implementation capability*, not ideation.
-
----
-
+User: 
 # Agent Evaluation Prompt
 
 **Category:** Feature & Improvement
@@ -215,14 +211,6 @@ Your response must include:
 
 Do **not** provide plans, TODOs, or high-level suggestions.
 Only submit **executable, verifiable deliverables**.
-
----
-
-If you want, I can also:
-
-* Provide a **scoring rubric** (engineering depth, correctness, extensibility)
-* Generate **difficulty tiers** (junior / senior / staff-level variants)
-* Convert this prompt into **JSON / JSONL** for batch evaluation pipelines
 
 
 GitHub Copilot: I'll implement a complete policy-driven multi-stage moderation system. Let me start by examining the baseline implementation. 
