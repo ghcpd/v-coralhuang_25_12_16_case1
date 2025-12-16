@@ -1,0 +1,1 @@
+{"policies": [{"name": "or_test", "logic": "or", "rules": [{"type": "keyword", "value": "good"}, {"type": "user", "value": "trusted"}], "action": "approve", "reason": "OR match"}]}

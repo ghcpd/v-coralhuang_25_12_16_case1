@@ -5,13 +5,54 @@
 # - Block interception on blacklist hit
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
 from enum import Enum
 from typing import Dict, List, Optional
 import uuid
 import time
+import json
 
 app = FastAPI(title="Baseline Content Moderation Service", version="0.1.0")
+
+
+# --- Policy configuration ---
+POLICIES: List[Dict] = []
+
+
+def load_policies():
+    global POLICIES
+    try:
+        with open('policy.json', 'r') as f:
+            policy_data = json.load(f)
+        POLICIES = policy_data.get('policies', [])
+    except (FileNotFoundError, json.JSONDecodeError):
+        POLICIES = []
+
+
+def evaluate_policies(text: str, user_id: str) -> tuple[Optional[str], Optional[str]]:
+    for policy in POLICIES:
+        logic = policy.get('logic', 'and')
+        rules = policy.get('rules', [])
+        matches = []
+        for rule in rules:
+            rule_type = rule.get('type')
+            value = rule.get('value', '').lower()
+            if rule_type == 'keyword':
+                if value in text.lower():
+                    matches.append(True)
+                else:
+                    matches.append(False)
+            elif rule_type == 'user':
+                if value == user_id.lower():
+                    matches.append(True)
+                else:
+                    matches.append(False)
+            else:
+                matches.append(False)
+        if logic == 'and' and all(matches):
+            return policy.get('action'), policy.get('reason')
+        elif logic == 'or' and any(matches):
+            return policy.get('action'), policy.get('reason')
+    return None, None
 
 
 class ContentStatus(str, Enum):
@@ -19,35 +60,6 @@ class ContentStatus(str, Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     BLOCKED = "BLOCKED"
-
-
-class SubmitContentRequest(BaseModel):
-    user_id: str = Field(..., min_length=1)
-    text: str = Field(..., min_length=1, max_length=5000)
-
-
-class SubmitContentResponse(BaseModel):
-    content_id: str
-    status: ContentStatus
-    reason: Optional[str] = None
-
-
-class ReviewDecisionRequest(BaseModel):
-    reviewer_id: str = Field(..., min_length=1)
-    decision: ContentStatus  # APPROVED or REJECTED
-    note: Optional[str] = Field(default=None, max_length=1000)
-
-
-class ContentItem(BaseModel):
-    content_id: str
-    user_id: str
-    text: str
-    status: ContentStatus
-    created_at: float
-    updated_at: float
-    reason: Optional[str] = None
-    reviewer_id: Optional[str] = None
-    review_note: Optional[str] = None
 
 
 # --- In-memory stores (baseline) ---
@@ -72,6 +84,12 @@ def _hit_blacklist(text: str) -> Optional[str]:
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+@app.post("/reload_policies")
+def reload_policies():
+    load_policies()
+    return {"message": "Policies reloaded"}
 
 
 @app.get("/blacklist")
@@ -99,50 +117,85 @@ def remove_blacklist_keyword(keyword: str):
     return {"removed": False, "keywords": BLACKLIST}
 
 
-@app.post("/content/submit", response_model=SubmitContentResponse)
-def submit_content(req: SubmitContentRequest):
+@app.post("/content/submit")
+def submit_content(req: dict):
+    user_id = req.get("user_id")
+    text = req.get("text")
+    if not user_id or not text:
+        raise HTTPException(status_code=400, detail="user_id and text required")
     content_id = str(uuid.uuid4())
     ts = _now()
 
-    hit = _hit_blacklist(req.text)
-    if hit is not None:
-        item = ContentItem(
-            content_id=content_id,
-            user_id=req.user_id,
-            text=req.text,
-            status=ContentStatus.BLOCKED,
-            created_at=ts,
-            updated_at=ts,
-            reason=f"Blacklisted keyword hit: {hit}",
-        )
-        CONTENTS[content_id] = item
-        return SubmitContentResponse(
-            content_id=content_id,
-            status=item.status,
-            reason=item.reason,
-        )
+    # Check policies first
+    if POLICIES:
+        action, reason = evaluate_policies(text, user_id)
+        if action:
+            status_map = {
+                'approve': ContentStatus.APPROVED,
+                'reject': ContentStatus.REJECTED,
+                'block': ContentStatus.BLOCKED,
+                'review': ContentStatus.PENDING_REVIEW
+            }
+            status = status_map.get(action)
+            if status:
+                item = {
+                    "content_id": content_id,
+                    "user_id": user_id,
+                    "text": text,
+                    "status": status,
+                    "created_at": ts,
+                    "updated_at": ts,
+                    "reason": reason or f"Policy action: {action}",
+                }
+                CONTENTS[content_id] = item
+                if status == ContentStatus.PENDING_REVIEW:
+                    REVIEW_QUEUE.append(content_id)
+                return {
+                    "content_id": content_id,
+                    "status": status.value,
+                    "reason": item["reason"],
+                }
 
-    # Not blocked -> require manual review in baseline
-    item = ContentItem(
-        content_id=content_id,
-        user_id=req.user_id,
-        text=req.text,
-        status=ContentStatus.PENDING_REVIEW,
-        created_at=ts,
-        updated_at=ts,
-        reason="Requires manual review",
-    )
+    # Fallback to baseline behavior
+    hit = _hit_blacklist(text)
+    if hit is not None:
+        item = {
+            "content_id": content_id,
+            "user_id": user_id,
+            "text": text,
+            "status": ContentStatus.BLOCKED,
+            "created_at": ts,
+            "updated_at": ts,
+            "reason": f"Blacklisted keyword hit: {hit}",
+        }
+        CONTENTS[content_id] = item
+        return {
+            "content_id": content_id,
+            "status": item["status"].value,
+            "reason": item["reason"],
+        }
+
+    # Not blocked -> require manual review
+    item = {
+        "content_id": content_id,
+        "user_id": user_id,
+        "text": text,
+        "status": ContentStatus.PENDING_REVIEW,
+        "created_at": ts,
+        "updated_at": ts,
+        "reason": "Requires manual review",
+    }
     CONTENTS[content_id] = item
     REVIEW_QUEUE.append(content_id)
 
-    return SubmitContentResponse(
-        content_id=content_id,
-        status=item.status,
-        reason=item.reason,
-    )
+    return {
+        "content_id": content_id,
+        "status": item["status"].value,
+        "reason": item["reason"],
+    }
 
 
-@app.get("/content/{content_id}", response_model=ContentItem)
+@app.get("/content/{content_id}")
 def get_content(content_id: str):
     item = CONTENTS.get(content_id)
     if item is None:
@@ -160,24 +213,29 @@ def get_review_queue(limit: int = 20):
 
 
 @app.post("/review/{content_id}")
-def review_content(content_id: str, req: ReviewDecisionRequest):
+def review_content(content_id: str, req: dict):
+    reviewer_id = req.get("reviewer_id")
+    decision = req.get("decision")
+    note = req.get("note")
+    if not reviewer_id or not decision:
+        raise HTTPException(status_code=400, detail="reviewer_id and decision required")
     item = CONTENTS.get(content_id)
     if item is None:
         raise HTTPException(status_code=404, detail="content not found")
 
-    if item.status != ContentStatus.PENDING_REVIEW:
+    if item["status"] != ContentStatus.PENDING_REVIEW:
         raise HTTPException(
             status_code=409,
-            detail=f"content status is {item.status}, cannot review",
+            detail=f"content status is {item['status']}, cannot review",
         )
 
-    if req.decision not in (ContentStatus.APPROVED, ContentStatus.REJECTED):
+    if decision not in (ContentStatus.APPROVED.value, ContentStatus.REJECTED.value):
         raise HTTPException(status_code=400, detail="decision must be APPROVED or REJECTED")
 
-    item.status = req.decision
-    item.updated_at = _now()
-    item.reviewer_id = req.reviewer_id
-    item.review_note = req.note
+    item["status"] = ContentStatus(decision)
+    item["updated_at"] = _now()
+    item["reviewer_id"] = reviewer_id
+    item["review_note"] = note
 
     # Remove from queue if present
     try:
@@ -186,4 +244,8 @@ def review_content(content_id: str, req: ReviewDecisionRequest):
         pass
 
     CONTENTS[content_id] = item
-    return {"content_id": content_id, "status": item.status, "reviewer_id": item.reviewer_id}
+    return {"content_id": content_id, "status": item["status"].value, "reviewer_id": item["reviewer_id"]}
+
+
+# Load policies on startup
+load_policies()
