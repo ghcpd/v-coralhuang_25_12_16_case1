@@ -11,6 +11,9 @@ from typing import Dict, List, Optional
 import uuid
 import time
 
+# policy engine
+from policy.engine import engine, PolicyResult
+
 app = FastAPI(title="Baseline Content Moderation Service", version="0.1.0")
 
 
@@ -99,11 +102,54 @@ def remove_blacklist_keyword(keyword: str):
     return {"removed": False, "keywords": BLACKLIST}
 
 
+# --- Policy management endpoints ---
+@app.get("/policies")
+def list_policies():
+    # return policy ids and names for debugging
+    ps = [ {"id": p.id, "name": p.name, "action": p.action} for p in engine.policies ]
+    return {"count": len(ps), "policies": ps}
+
+
+@app.post("/policies/reload")
+def reload_policies(file_path: Optional[str] = None):
+    # reload policies from provided path or default
+    path = file_path or None
+    engine.load_from_file(path)
+    return {"loaded": len(engine.policies)}
+
+
+@app.post("/policies/clear")
+def clear_policies():
+    engine.policies = []
+    return {"cleared": True}
+
+
 @app.post("/content/submit", response_model=SubmitContentResponse)
 def submit_content(req: SubmitContentRequest):
     content_id = str(uuid.uuid4())
     ts = _now()
 
+    # Policy evaluation first (if policies are loaded). If a policy matches, it's final.
+    policy_res = engine.evaluate(req.user_id, req.text) if engine and getattr(engine, "policies", None) else None
+    if policy_res is not None:
+        status = ContentStatus(policy_res.action)
+        reason = f"Policy {policy_res.policy_id}: {policy_res.reason}"
+        item = ContentItem(
+            content_id=content_id,
+            user_id=req.user_id,
+            text=req.text,
+            status=status,
+            created_at=ts,
+            updated_at=ts,
+            reason=reason,
+        )
+        CONTENTS[content_id] = item
+        # If policy routed to manual review, add to queue
+        if status == ContentStatus.PENDING_REVIEW:
+            REVIEW_QUEUE.append(content_id)
+        return SubmitContentResponse(content_id=content_id, status=item.status, reason=item.reason)
+
+    # No matching policy -> fallback to baseline blacklist behavior
     hit = _hit_blacklist(req.text)
     if hit is not None:
         item = ContentItem(

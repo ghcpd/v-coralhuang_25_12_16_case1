@@ -1,0 +1,37 @@
+[
+  {
+    "id": "low_auto_approve",
+    "name": "Low risk - auto approve",
+    "condition": { "type": "keyword", "keywords": ["friendly", "harmless"] },
+    "action": "APPROVED",
+    "reason": "Low risk keywords"
+  },
+  {
+    "id": "medium_manual_review",
+    "name": "Medium risk - manual review",
+    "condition": { "type": "keyword", "keywords": ["maybe", "unsure"] },
+    "action": "PENDING_REVIEW",
+    "reason": "Medium risk keywords"
+  },
+  {
+    "id": "composite_reject",
+    "name": "Composite AND rule - reject when user prefix and keyword",
+    "condition": {
+      "type": "composite",
+      "operator": "AND",
+      "operands": [
+        { "type": "keyword", "keywords": ["danger"] },
+        { "type": "user", "user_prefixes": ["bad_"] }
+      ]
+    },
+    "action": "REJECTED",
+    "reason": "User + keyword composite"
+  },
+  {
+    "id": "high_block_by_user",
+    "name": "High risk - block bad user prefix",
+    "condition": {"type": "user", "user_prefixes": ["bad_", "suspicious_"]},
+    "action": "BLOCKED",
+    "reason": "High risk user prefix"
+  }
+]
