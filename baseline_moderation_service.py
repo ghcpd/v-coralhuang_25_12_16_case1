@@ -11,6 +11,8 @@ from typing import Dict, List, Optional
 import uuid
 import time
 
+from policy_engine import PolicyEngine
+
 app = FastAPI(title="Baseline Content Moderation Service", version="0.1.0")
 
 
@@ -104,6 +106,32 @@ def submit_content(req: SubmitContentRequest):
     content_id = str(uuid.uuid4())
     ts = _now()
 
+    # Policy-driven moderation first (policy-first)
+    policy_engine = PolicyEngine()
+    action, reason = policy_engine.evaluate(req.text, req.user_id)
+    if action is not None:
+        # Determine the status based on the action returned by policy
+        status = ContentStatus[action]
+        item = ContentItem(
+            content_id=content_id,
+            user_id=req.user_id,
+            text=req.text,
+            status=status,
+            created_at=ts,
+            updated_at=ts,
+            reason=reason,
+        )
+        CONTENTS[content_id] = item
+        if status == ContentStatus.PENDING_REVIEW:
+            # queue for manual review
+            REVIEW_QUEUE.append(content_id)
+        return SubmitContentResponse(
+            content_id=content_id,
+            status=item.status,
+            reason=item.reason,
+        )
+
+    # No policy matched -> fallback to blacklist behavior
     hit = _hit_blacklist(req.text)
     if hit is not None:
         item = ContentItem(
