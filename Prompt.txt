@@ -210,11 +210,3 @@ Your response must include:
 
 Do **not** provide plans, TODOs, or high-level suggestions.
 Only submit **executable, verifiable deliverables**.
-
----
-
-If you want, I can also:
-
-* Provide a **scoring rubric** (engineering depth, correctness, extensibility)
-* Generate **difficulty tiers** (junior / senior / staff-level variants)
-* Convert this prompt into **JSON / JSONL** for batch evaluation pipelines
