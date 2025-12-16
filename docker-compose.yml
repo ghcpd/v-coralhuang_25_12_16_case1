@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  moderation-service:
+    build: .
+    container_name: moderation-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./policy.json:/app/policy.json
+      - ./logs:/app/logs
+    environment:
+      - POLICY_FILE=policy.json
+      - ENABLE_POLICIES=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - moderation-network
+
+networks:
+  moderation-network:
+    driver: bridge

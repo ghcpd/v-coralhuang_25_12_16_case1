@@ -1,0 +1,84 @@
+{
+  "policies": [
+    {
+      "id": "auto_approve_bots",
+      "name": "Auto-approve bot users",
+      "risk_level": "LOW",
+      "rules": [
+        {
+          "id": "bot_user_prefix",
+          "name": "Bot user IDs",
+          "type": "user",
+          "user_prefix": "bot_"
+        }
+      ],
+      "composition": {
+        "operator": "OR",
+        "rule_ids": ["bot_user_prefix"]
+      }
+    },
+    {
+      "id": "route_new_users_to_review",
+      "name": "Route new users to manual review",
+      "risk_level": "MEDIUM",
+      "rules": [
+        {
+          "id": "new_user_prefix",
+          "name": "New user IDs",
+          "type": "user",
+          "user_prefix": "new_user_"
+        }
+      ],
+      "composition": {
+        "operator": "OR",
+        "rule_ids": ["new_user_prefix"]
+      }
+    },
+    {
+      "id": "auto_reject_violence",
+      "name": "Auto-reject violent content",
+      "risk_level": "HIGH",
+      "rules": [
+        {
+          "id": "violence_keywords",
+          "name": "Violence keywords",
+          "type": "keyword",
+          "keywords": ["kill", "murder", "bomb", "attack", "destroy", "hurt", "violence"]
+        },
+        {
+          "id": "flagged_user_list",
+          "name": "Flagged user list",
+          "type": "user",
+          "user_ids": ["user_123", "user_456", "spammer_account"]
+        }
+      ],
+      "composition": {
+        "operator": "OR",
+        "rule_ids": ["violence_keywords", "flagged_user_list"]
+      }
+    },
+    {
+      "id": "combined_spam_detection",
+      "name": "Combine spam keywords with premium user check",
+      "risk_level": "HIGH",
+      "rules": [
+        {
+          "id": "spam_keywords",
+          "name": "Spam-related keywords",
+          "type": "keyword",
+          "keywords": ["spam", "phishing", "malware", "trojan"]
+        },
+        {
+          "id": "premium_users",
+          "name": "Premium user IDs",
+          "type": "user",
+          "user_ids": ["premium_1", "premium_2", "premium_3"]
+        }
+      ],
+      "composition": {
+        "operator": "AND",
+        "rule_ids": ["spam_keywords", "premium_users"]
+      }
+    }
+  ]
+}
