@@ -1,0 +1,44 @@
+[
+  {
+    "id": "low_hello",
+    "name": "Auto-approve hello",
+    "rule": { "type": "keyword", "keywords": ["hello"] },
+    "action": "APPROVED",
+    "reason": "Contains greeting word"
+  },
+  {
+    "id": "medium_sales",
+    "name": "Medium review for sales",
+    "rule": { "type": "keyword", "keywords": ["buy now", "limited offer"] },
+    "action": "PENDING_REVIEW",
+    "reason": "Potential advertisement"
+  },
+  {
+    "id": "high_spam_user",
+    "name": "Reject spam user",
+    "rule": { "type": "user", "user_ids": ["bad_user"], "prefixes": ["spammer_"] },
+    "action": "REJECTED",
+    "reason": "User is banned"
+  },
+  {
+    "id": "high_block_rule",
+    "name": "Block illegal keyword",
+    "rule": { "type": "keyword", "keywords": ["illegal"] },
+    "action": "BLOCKED",
+    "reason": "Violates policy"
+  },
+  {
+    "id": "composite_and",
+    "name": "Composite AND rule",
+    "rule": {
+      "type": "composite",
+      "op": "AND",
+      "rules": [
+        { "type": "keyword", "keywords": ["foo"] },
+        { "type": "user", "prefixes": ["bad_"] }
+      ]
+    },
+    "action": "BLOCKED",
+    "reason": "Known bad user posting foo"
+  }
+]
